@@ -9,9 +9,10 @@ import SwiftUI
 
 struct StartLearning: View {
     @State var learn :String=""
-    @State var selectedDuration: String = ""
-    let options = ["Week","Month","Year"]
+    @StateObject private var onboardingVM = OnboardingViewModel()
+    
     var body: some View {
+       
         VStack{
             Image("Icon")
                 .resizable()
@@ -32,44 +33,48 @@ struct StartLearning: View {
                     .font(.system(size: 17))
                     .foregroundColor(.gray)
                 Text("I want to learn")
-                TextField("Swift..", text: $learn)
+                
+                
+                TextField("Swift..", text: $onboardingVM.learningGoal.goalText)
                     .padding(.bottom, 30)
                     .font(.system(size: 16))
                 Text("I want to learn it in a ")
                     .padding(.bottom,12)
                 
-                HStack(spacing: 12 ) {
-                    
-                    Button("Week") {
-                        /*@START_MENU_TOKEN@*//*@PLACEHOLDER=Action@*/ /*@END_MENU_TOKEN@*/
-                    }
-                   
-                    Button("Month") {
-                        /*@START_MENU_TOKEN@*//*@PLACEHOLDER=Action@*/ /*@END_MENU_TOKEN@*/
-                    }
-                   
-                    Button("Year") {
-                        /*@START_MENU_TOKEN@*//*@PLACEHOLDER=Action@*/ /*@END_MENU_TOKEN@*/
+                HStack(spacing: 12) {
+                    ForEach(["Week", "Month", "Year"], id: \.self) { duration in
+                        let isSelected = onboardingVM.learningGoal.selectedDuration == duration
                         
+                        Button {
+                         
+                                onboardingVM.learningGoal.selectedDuration = duration
+                            
+                        } label: {
+                            Text(duration)
+                             //   .font(.system(size: 16, weight: .medium))
+                                .foregroundStyle(isSelected ? .white : .gray)
+                             //   .frame(maxWidth: .infinity)
+                                .padding(.vertical, 16)
+                                .padding(.horizontal,20)
+                        }
+                       
+                        .glassEffect(
+                            isSelected
+                            ? .regular.tint(.orange).interactive()
+                            : .regular.interactive(),
+                            in: .capsule
+                        )
                     }
-                   
-              
-                
                 }
-                .buttonStyle(GlassButtonStyle())
-              //  .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.gray)
-                .padding(.bottom,228)
-              
-               
-             
+            //    .padding(.horizontal)
+                .padding(.bottom, 228)
                 
                 
             }
             .padding(.leading,17)
             
             Button {
-                // الأكشن هنا
+                onboardingVM.saveOnboardingData()
             } label: {
                 Text("Start Learning")
                  
@@ -86,6 +91,7 @@ Text("You can edit your desire later")
             
             
         }
+       
     }
 }
 

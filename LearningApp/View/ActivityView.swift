@@ -1,8 +1,11 @@
 import SwiftUI
+import Combine
 
 // MARK: - Main UI View
 struct ActivityView: View {
     @State private var viewModel = ActivityViewModel()
+    @State private var showEditGoal = false
+    let timer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
     
     var body: some View {
         ZStack {
@@ -15,19 +18,32 @@ struct ActivityView: View {
                 
                 Spacer()
                 
-                ActionSectionView(viewModel: viewModel)
+                ActionSectionView(viewModel: viewModel) {
+                    showEditGoal = true
+                }
                 
                 Spacer()
             }
             .padding(.horizontal, 20)
             .padding(.top, 10)
         }
+        .onAppear {
+            viewModel.checkTimeElapsed()
+        }
+        .onReceive(timer) { _ in
+            viewModel.checkTimeElapsed()
+        }
+        .sheet(isPresented: $showEditGoal) {
+            EditGoalView {
+                viewModel.resetForNewGoal()
+            }
+        }
     }
 }
 
 // MARK: - Calendar Header Subview
 struct CalendarHeaderView: View {
-    @Bindable var viewModel: ActivityViewModel // تم استخدام @Bindable لضمان التحديث الفوري للـ UI
+    @Bindable var viewModel: ActivityViewModel
     
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -68,23 +84,33 @@ struct CalendarHeaderView: View {
             // شريط الأيام الأسبوعية
             HStack(spacing: 0) {
                 ForEach(viewModel.days) { day in
+                    let isToday = Calendar.current.isDateInToday(day.date)
+                    let textColor: Color = day.isFreezed ? .cyan : (day.isLearned ? .orange : (day.isSelected ? .black : .white))
+                    let bgColor: Color = day.isFreezed ? .cyan.opacity(0.2) : (day.isLearned ? .orange.opacity(0.2) : (day.isSelected ? .orange : Color.white.opacity(0.08)))
+                    let strokeColor: Color = day.isFreezed ? .cyan : (day.isLearned ? .orange : .clear)
+                    
                     VStack(spacing: 8) {
                         Text(day.dayOfWeek)
                             .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.white)
+                            .foregroundColor(isToday ? .white : .gray)
                         
                         Text("\(day.dayNumber)")
                             .font(.system(size: 17, weight: .bold))
-                            .foregroundColor(day.isSelected ? .black : .white)
+                            .foregroundColor(textColor)
                             .frame(width: 40, height: 40)
                             .background(
-                                Circle()
-                                    .fill(day.isSelected ? Color.orange : Color.white.opacity(0.08))
+                                Circle().fill(bgColor)
+                            )
+                            .overlay(
+                                Circle().stroke(strokeColor, lineWidth: 1)
                             )
                     }
                     .frame(maxWidth: .infinity)
+                    .opacity(isToday || day.isLearned || day.isFreezed ? 1.0 : 0.4)
                     .onTapGesture {
-                        viewModel.selectDay(day)
+                        if isToday {
+                            viewModel.selectDay(day)
+                        }
                     }
                 }
             }
@@ -147,13 +173,81 @@ struct StatsCardView: View {
     }
 }
 
-// MARK: - Action Section Subview (Log Circle & Freeze Button)
+// MARK: - Action Section Subview
 struct ActionSectionView: View {
-    let viewModel: ActivityViewModel
+    @Bindable var viewModel: ActivityViewModel
+    var onSetGoalTapped: () -> Void
     
     var body: some View {
         VStack(spacing: 32) {
-            // 1. Log as Learned Circle
+            if viewModel.hasFailedGoal {
+                FailedGoalView(onSetGoalTapped: onSetGoalTapped)
+            } else {
+                NormalActionView(viewModel: viewModel)
+            }
+        }
+    }
+}
+
+// MARK: - Subview لشاشة الفشل
+struct FailedGoalView: View {
+    var onSetGoalTapped: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "xmark.shield.fill")
+                .font(.system(size: 40))
+                .foregroundColor(.orange)
+                .padding(16)
+                .background(Color.orange.opacity(0.15))
+                .clipShape(Circle())
+                .overlay(
+                    Circle().stroke(Color.orange.opacity(0.4), lineWidth: 1)
+                )
+            
+            VStack(spacing: 6) {
+                Text("You didn't reach your goal this time.")
+                    .font(.system(size: 17, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Text("Want to set another goal?")
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(.gray)
+            }
+            
+            Button(action: {
+                onSetGoalTapped()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "pencil.line")
+                    Text("Set a goal")
+                }
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(maxWidth: .infinity)
+                .frame(height: 52)
+                .background(Color.orange)
+                .cornerRadius(26)
+            }
+            .padding(.horizontal, 20)
+        }
+        .padding(.vertical, 30)
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(24)
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+    }
+}
+
+// MARK: - Subview للأزرار العادية (Log و Freeze)
+struct NormalActionView: View {
+    @Bindable var viewModel: ActivityViewModel
+    
+    var body: some View {
+        VStack(spacing: 32) {
+            // زر التعلم
             Button(action: {
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
                     viewModel.logAsLearned()
@@ -174,26 +268,26 @@ struct ActionSectionView: View {
                         .foregroundColor(viewModel.isDayLearned ? Color.gray : .white)
                 }
             }
-            .disabled(viewModel.isDayFreezed)
             
-            // 2. Freeze Button Section
+            // زر الفريز
             VStack(spacing: 12) {
                 Button(action: {
-                    viewModel.freezeDay()
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                        viewModel.freezeDay()
+                    }
                 }) {
-                    Text("Freeze for a day")
+                    Text(viewModel.freezeButtonText)
                         .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(viewModel.canFreeze ? .white : Color.gray.opacity(0.6))
+                        .foregroundColor(viewModel.freezeButtonTextColor)
                         .frame(maxWidth: .infinity)
                         .frame(height: 52)
-                        .background(viewModel.canFreeze ? Color.cyan : Color.white.opacity(0.06))
+                        .background(viewModel.freezeButtonBackgroundColor)
                         .cornerRadius(26)
                         .overlay(
                             RoundedRectangle(cornerRadius: 26)
-                                .stroke(viewModel.canFreeze ? Color.clear : Color.white.opacity(0.08), lineWidth: 1)
+                                .stroke(viewModel.freezeButtonStrokeColor, lineWidth: 1)
                         )
                 }
-                .disabled(!viewModel.canFreeze)
                 
                 Text("\(viewModel.usedFreezes) out of \(viewModel.maxFreezes) Freezes used")
                     .font(.system(size: 14, weight: .medium))
