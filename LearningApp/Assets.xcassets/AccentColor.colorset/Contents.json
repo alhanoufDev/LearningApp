@@ -1,6 +1,47 @@
 {
   "colors" : [
     {
+      "color" : {
+        "platform" : "universal",
+        "reference" : "systemOrangeColor"
+      },
+      "display-gamut" : "sRGB",
+      "idiom" : "universal"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ],
+      "color" : {
+        "platform" : "universal",
+        "reference" : "systemOrangeColor"
+      },
+      "display-gamut" : "sRGB",
+      "idiom" : "universal"
+    },
+    {
+      "color" : {
+        "platform" : "universal",
+        "reference" : "systemOrangeColor"
+      },
+      "display-gamut" : "display-P3",
+      "idiom" : "universal"
+    },
+    {
+      "appearances" : [
+        {
+          "appearance" : "luminosity",
+          "value" : "dark"
+        }
+      ],
+      "color" : {
+        "platform" : "universal",
+        "reference" : "systemOrangeColor"
+      },
+      "display-gamut" : "display-P3",
       "idiom" : "universal"
     }
   ],
