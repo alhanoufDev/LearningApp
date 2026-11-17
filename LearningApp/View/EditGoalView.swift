@@ -97,17 +97,20 @@ struct EditGoalView: View {
         // تنبيه الـ Alert تماماً كما في الصورة الثالثة
         .alert("Update goal", isPresented: $showAlert) {
             Button("Dismiss", role: .cancel) { }
-            Button("Update", role: .destructive) {
-                // حفظ الهدف الجديد وتصفير الستريك والرجوع
+            
+            Button("Update") {
                 UserDefaults.standard.set(goalText, forKey: "savedLearningGoal")
                 UserDefaults.standard.set(selectedDuration, forKey: "savedDuration")
                 onUpdateGoal()
                 dismiss()
+                
             }
+            
+            .keyboardShortcut(.defaultAction)
             
         } message: {
             Text("If you update now, your streak will start over.")
-                
+        
         }
     }
 }

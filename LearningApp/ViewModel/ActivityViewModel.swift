@@ -15,7 +15,23 @@ final class ActivityViewModel {
     var usedFreezes: Int = 0 {
         didSet { UserDefaults.standard.set(usedFreezes, forKey: "usedFreezes") }
     }
-    let maxFreezes: Int = 2
+    
+    // جلب المدة المختارة مباشرة من الـ UserDefaults (تكون "Week" أو "Month" أو "Year")
+    var selectedDurationType: String {
+        UserDefaults.standard.string(forKey: "savedDuration") ?? "Week"
+    }
+
+    // تحديد الحد الأقصى للفريزات ديناميكياً بناءً على اختيار المستخدم (أسبوع = 2، شهر = 8، سنة = 96)
+    var maxFreezes: Int {
+        switch selectedDurationType {
+        case "Month":
+            return 8
+        case "Year":
+            return 96
+        default: // "Week" أو أي قيمة افتراضية
+            return 2
+        }
+    }
     
     var selectedDayIndex: Int = 0
     var hasFailedGoal: Bool = false
@@ -47,22 +63,31 @@ final class ActivityViewModel {
     
     var isDayFreezed: Bool {
         currentSelectedDay.isFreezed
-    } 
+    }
     
     var canFreeze: Bool {
-        usedFreezes < maxFreezes || currentSelectedDay.isFreezed
+        let isNewDay = lastResetCheckIsNewDay()
+        if isNewDay {
+            return usedFreezes < maxFreezes && !isDayLearned
+        }
+        return (usedFreezes < maxFreezes || currentSelectedDay.isFreezed) && !isDayLearned
     }
     
     init() {
         setupWeekDays()
-        loadTodayState() // استرجاع حالة اليوم الحالي المحفوظة فوراً
+        loadTodayState()
         checkTimeElapsed()
     }
     
-    // MARK: - حفظ واسترجاع حالة اليوم الحالي مباشرة (طريقة ذكية وسريعة)
+    private func lastResetCheckIsNewDay() -> Bool {
+        if let savedDate = UserDefaults.standard.object(forKey: "savedDayDate") as? Date {
+            return !Calendar.current.isDateInToday(savedDate)
+        }
+        return true
+    }
+    
     private func saveTodayState() {
         let today = currentSelectedDay.date
-        // حفظ مفاتيح خاصة بيوم اليوم لتجنب أي تعقيد
         UserDefaults.standard.set(currentSelectedDay.isLearned, forKey: "isTodayLearned")
         UserDefaults.standard.set(currentSelectedDay.isFreezed, forKey: "isTodayFreezed")
         UserDefaults.standard.set(today, forKey: "savedDayDate")
@@ -73,7 +98,6 @@ final class ActivityViewModel {
         freezedDaysCount = UserDefaults.standard.integer(forKey: "freezedDaysCount")
         usedFreezes = UserDefaults.standard.integer(forKey: "usedFreezes")
         
-        // التحقق مما إذا كانت البيانات المحفوظة تخص نفس يوم اليوم (لتجنب بقاء بيانات قديمة لأيام مضت)
         if let savedDate = UserDefaults.standard.object(forKey: "savedDayDate") as? Date,
            Calendar.current.isDateInToday(savedDate) {
             
@@ -144,54 +168,50 @@ final class ActivityViewModel {
     }
     
     func logAsLearned() {
-            guard isTodaySelected else { return }
-            
-            // إذا كان اليوم مجمداً، نلغي الفريز ونرجع رصيده
-            if currentSelectedDay.isFreezed {
-                days[selectedDayIndex].isFreezed = false
-                usedFreezes = max(0, usedFreezes - 1)
-                freezedDaysCount = max(0, freezedDaysCount - 1)
-            }
-            
-            let currentState = days[selectedDayIndex].isLearned
-            days[selectedDayIndex].isLearned.toggle()
-            
-            if !currentState {
-                // عند تفعيل التعلم: نقوم بتثبيت النشاط وتجديد المهلة
-                learnedDaysCount += 1
-                resetTimerAndActivity()
-            } else {
-                // عند إلغاء التحديد (الرجوع للوضع الفارغ): نقص العداد فقط دون تصفير وقت البداية الأصلي!
-                learnedDaysCount = max(0, learnedDaysCount - 1)
-                saveTodayState()
-            }
+        guard isTodaySelected else { return }
+        
+        if currentSelectedDay.isFreezed {
+            days[selectedDayIndex].isFreezed = false
+            usedFreezes = max(0, usedFreezes - 1)
+            freezedDaysCount = max(0, freezedDaysCount - 1)
         }
         
-        func freezeDay() {
-            guard isTodaySelected else { return }
-            
-            if currentSelectedDay.isLearned {
-                days[selectedDayIndex].isLearned = false
-                learnedDaysCount = max(0, learnedDaysCount - 1)
-            }
-            
-            let currentState = days[selectedDayIndex].isFreezed
-            
-            if !currentState {
-                // عند تفعيل الفريز: نقوم بتثبيت النشاط وتجديد المهلة
-                guard usedFreezes < maxFreezes else { return }
-                days[selectedDayIndex].isFreezed = true
-                usedFreezes += 1
-                freezedDaysCount += 1
-                resetTimerAndActivity()
-            } else {
-                // عند إلغاء التحديد (الرجوع للوضع الفارغ): نقص العدادات فقط دون تصفير وقت البداية الأصلي!
-                days[selectedDayIndex].isFreezed = false
-                usedFreezes = max(0, usedFreezes - 1)
-                freezedDaysCount = max(0, freezedDaysCount - 1)
-                saveTodayState()
-            }
+        let currentState = days[selectedDayIndex].isLearned
+        days[selectedDayIndex].isLearned.toggle()
+        
+        if !currentState {
+            learnedDaysCount += 1
+            resetTimerAndActivity()
+        } else {
+            learnedDaysCount = max(0, learnedDaysCount - 1)
+            saveTodayState()
         }
+    }
+    
+    func freezeDay() {
+        guard isTodaySelected else { return }
+        
+        if currentSelectedDay.isLearned {
+            days[selectedDayIndex].isLearned = false
+            learnedDaysCount = max(0, learnedDaysCount - 1)
+        }
+        
+        let currentState = days[selectedDayIndex].isFreezed
+        
+        if !currentState {
+            guard canFreeze else { return }
+            days[selectedDayIndex].isFreezed = true
+            usedFreezes += 1
+            freezedDaysCount += 1
+            resetTimerAndActivity()
+        } else {
+            days[selectedDayIndex].isFreezed = false
+            usedFreezes = max(0, usedFreezes - 1)
+            freezedDaysCount = max(0, freezedDaysCount - 1)
+            saveTodayState()
+        }
+    }
+    
     func checkTimeElapsed() {
         let calendar = Calendar.current
         let minutesPassed = calendar.dateComponents([.minute], from: lastActivityDate, to: Date()).minute ?? 0
@@ -244,5 +264,21 @@ final class ActivityViewModel {
         if isDayFreezed { return Color.white.opacity(0.15) }
         else if canFreeze { return .clear }
         else { return Color.white.opacity(0.08) }
+    }
+    
+    var hasCompletedGoal: Bool {
+        // تحديد العدد المستهدف بناءً على المدة التي اختارها المستخدم
+        let targetDays: Int
+        switch selectedDurationType {
+        case "Month":
+            targetDays = 30 // أو عدد الأيام المستهدفة للشهر
+        case "Year":
+            targetDays = 365 // أو عدد الأيام المستهدفة للسنة
+        default:
+            targetDays = 7 // Week (الافتراضي 7 أيام)
+        }
+        
+        // إذا وصل المستخدم لعدد الأيام المتعلمة المطلوبة حسب اختياره، يعتبر الهدف مكتمل
+        return learnedDaysCount >= targetDays
     }
 }

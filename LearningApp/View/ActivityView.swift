@@ -3,39 +3,47 @@ import Combine
 
 // MARK: - Main UI View
 struct ActivityView: View {
+    @State private var showCalendar = false
     @State private var viewModel = ActivityViewModel()
     @State private var showEditGoal = false
     let timer = Timer.publish(every: 5, on: .main, in: .common).autoconnect()
     
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
-            
-            VStack(spacing: 24) {
-                CalendarHeaderView(viewModel: viewModel)
+        NavigationStack{
+            ZStack {
+                Color.black.ignoresSafeArea()
                 
-                StatsCardView(viewModel: viewModel)
-                
-                Spacer()
-                
-                ActionSectionView(viewModel: viewModel) {
-                    showEditGoal = true
+                VStack(spacing: 24) {
+                    CalendarHeaderView(viewModel: viewModel){
+                       showCalendar=true
+                    }
+                    
+                    StatsCardView(viewModel: viewModel)
+                    
+                    Spacer()
+                    
+                    ActionSectionView(viewModel: viewModel) {
+                        showEditGoal = true
+                    }
+                    
+                    Spacer()
                 }
-                
-                Spacer()
+                .padding(.horizontal, 20)
+                .padding(.top, 10)
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 10)
-        }
-        .onAppear {
-            viewModel.checkTimeElapsed()
-        }
-        .onReceive(timer) { _ in
-            viewModel.checkTimeElapsed()
-        }
-        .sheet(isPresented: $showEditGoal) {
-            EditGoalView {
-                viewModel.resetForNewGoal()
+            .toolbar(.hidden, for: .navigationBar) // 👈 هذا السطر يمنع NavigationBar الافتراضي من تغيير أبعاد الصفحة ويترك التصميم كما كان!
+            .navigationDestination(isPresented: $showCalendar) {
+                ActivitiesCalendarView()}
+            .onAppear {
+                viewModel.checkTimeElapsed()
+            }
+            .onReceive(timer) { _ in
+                viewModel.checkTimeElapsed()
+            }
+            .sheet(isPresented: $showEditGoal) {
+                EditGoalView {
+                    viewModel.resetForNewGoal()
+                }
             }
         }
     }
@@ -44,7 +52,7 @@ struct ActivityView: View {
 // MARK: - Calendar Header Subview
 struct CalendarHeaderView: View {
     @Bindable var viewModel: ActivityViewModel
-    
+    var onCalendarTapped: () -> Void
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
@@ -61,7 +69,8 @@ struct CalendarHeaderView: View {
                 Spacer()
                 
                 HStack(spacing: 12) {
-                    Button(action: {}) {
+                    Button(action: {onCalendarTapped()}) {
+                    
                         Image(systemName: "calendar")
                             .font(.system(size: 18, weight: .semibold))
                             .foregroundColor(.white)
@@ -182,13 +191,14 @@ struct ActionSectionView: View {
         VStack(spacing: 32) {
             if viewModel.hasFailedGoal {
                 FailedGoalView(onSetGoalTapped: onSetGoalTapped)
+            } else if viewModel.hasCompletedGoal {
+                GoalCompletedView(onSetGoalTapped: onSetGoalTapped) // 👈 تظهر شاشة Will done! عند اكتمال الأيام
             } else {
                 NormalActionView(viewModel: viewModel)
             }
         }
     }
 }
-
 // MARK: - Subview لشاشة الفشل
 struct FailedGoalView: View {
     var onSetGoalTapped: () -> Void
@@ -269,7 +279,7 @@ struct NormalActionView: View {
                 }
             }
             
-            // زر الفريز
+            // زر الفريز مع تطبيق شروط التعطيل الموجودة في الصورة
             VStack(spacing: 12) {
                 Button(action: {
                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
@@ -288,6 +298,8 @@ struct NormalActionView: View {
                                 .stroke(viewModel.freezeButtonStrokeColor, lineWidth: 1)
                         )
                 }
+                // 👈 تفعيل التعطيل بناءً على الصورة (إذا خلصت الفريزات أو اليوم تسجل Learned)
+                .disabled(!viewModel.canFreeze || viewModel.isDayLearned)
                 
                 Text("\(viewModel.usedFreezes) out of \(viewModel.maxFreezes) Freezes used")
                     .font(.system(size: 14, weight: .medium))
@@ -296,7 +308,54 @@ struct NormalActionView: View {
         }
     }
 }
-
+struct GoalCompletedView: View {
+    var onSetGoalTapped: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            Image(systemName: "hand.raised.fill") // أيقونة التصفيق أو اليد الملوحة
+                .font(.system(size: 50))
+                .foregroundColor(.orange)
+                .padding(20)
+                .background(Color.orange.opacity(0.15))
+                .clipShape(Circle())
+            
+            VStack(spacing: 8) {
+                Text("Will done!")
+                    .font(.system(size: 22, weight: .bold))
+                    .foregroundColor(.white)
+                
+                Text("Ready for your next goal?")
+                    .font(.system(size: 15, weight: .regular))
+                    .foregroundColor(.gray)
+            }
+            
+            Button(action: {
+                onSetGoalTapped()
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: "pencil.line")
+                    Text("Set a goal")
+                }
+                .font(.system(size: 17, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 200, height: 52)
+                .background(Color.orange)
+                .cornerRadius(26)
+            }
+            .padding(.top, 10)
+        }
+        .padding(.vertical, 40)
+        .frame(maxWidth: .infinity)
+        .background(Color.white.opacity(0.04))
+        .cornerRadius(24)
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(Color.white.opacity(0.06), lineWidth: 1)
+        )
+        .padding(.horizontal, 20)
+    }
+}
 // MARK: - Preview
 #Preview {
     ActivityView()
