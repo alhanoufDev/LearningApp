@@ -21,14 +21,14 @@ final class ActivityViewModel {
         UserDefaults.standard.string(forKey: "savedDuration") ?? "Week"
     }
 
-    // تحديد الحد الأقصى للفريزات ديناميكياً بناءً على اختيار المستخدم (أسبوع = 2، شهر = 8، سنة = 96)
+    // تحديد الحد الأقصى للفريزات ديناميكياً بناءً على اختيار المستخدم
     var maxFreezes: Int {
         switch selectedDurationType {
         case "Month":
             return 8
         case "Year":
             return 96
-        default: // "Week" أو أي قيمة افتراضية
+        default:
             return 2
         }
     }
@@ -66,11 +66,7 @@ final class ActivityViewModel {
     }
     
     var canFreeze: Bool {
-        let isNewDay = lastResetCheckIsNewDay()
-        if isNewDay {
-            return usedFreezes < maxFreezes && !isDayLearned
-        }
-        return (usedFreezes < maxFreezes || currentSelectedDay.isFreezed) && !isDayLearned
+        return usedFreezes < maxFreezes
     }
     
     init() {
@@ -214,10 +210,10 @@ final class ActivityViewModel {
     
     func checkTimeElapsed() {
         let calendar = Calendar.current
-        let minutesPassed = calendar.dateComponents([.minute], from: lastActivityDate, to: Date()).minute ?? 0
+        let hoursPassed = calendar.dateComponents([.hour], from: lastActivityDate, to: Date()).hour ?? 0
         let isCurrentDayActive = currentSelectedDay.isLearned || currentSelectedDay.isFreezed
         
-        if minutesPassed >= 1 && !hasFailedGoal && !isCurrentDayActive {
+        if hoursPassed >= 32 && !hasFailedGoal && !isCurrentDayActive {
             hasFailedGoal = true
         }
     }
@@ -244,41 +240,42 @@ final class ActivityViewModel {
     }
     
     // MARK: - Freeze Button Styling Helpers
-    var freezeButtonText: String {
-        isDayFreezed ? "Freezed for a day" : "Freeze for a day"
-    }
+    // MARK: - Freeze Button Styling Helpers
+        var freezeButtonText: String {
+            isDayFreezed ? "Freezed for a day" : "Freeze for a day"
+        }
 
-    var freezeButtonTextColor: Color {
-        if isDayFreezed { return .gray }
-        else if canFreeze { return .white }
-        else { return Color.gray.opacity(0.6) }
-    }
+        var freezeButtonTextColor: Color {
+            // النص دائماً أبيض في الحالة العادية، ورمادي فقط إذا تم تجميده أو خلصت الفريزات
+            if isDayFreezed { return .gray }
+            else if canFreeze { return .white } // 👈 النص أبيض
+            else { return Color.gray.opacity(0.6) }
+        }
 
-    var freezeButtonBackgroundColor: Color {
-        if isDayFreezed { return Color.white.opacity(0.06) }
-        else if canFreeze { return .cyan }
-        else { return Color.white.opacity(0.06) }
-    }
+        var freezeButtonBackgroundColor: Color {
+            // الخلفية تصبح أزرق فاتح (.cyan) متى ما كان الزر متاحاً
+            if isDayFreezed { return Color.white.opacity(0.06) }
+            else if canFreeze { return .cyan } // 👈 خلفية زرقاء فاتحة بالكامل
+            else { return Color.white.opacity(0.06) }
+        }
 
-    var freezeButtonStrokeColor: Color {
-        if isDayFreezed { return Color.white.opacity(0.15) }
-        else if canFreeze { return .clear }
-        else { return Color.white.opacity(0.08) }
-    }
-    
+        var freezeButtonStrokeColor: Color {
+            // جعل الإطار شفافاً (بدون تحديد) متى ما كان الزر مفعل ومتاح
+            if isDayFreezed { return Color.white.opacity(0.15) }
+            else if canFreeze { return .clear } // 👈 بدون إطار (مب محدد)
+            else { return Color.white.opacity(0.08) }
+        }
+    // MARK: - Goal Completion Helper (تم إضافتها لمنع الخطأ)
     var hasCompletedGoal: Bool {
-        // تحديد العدد المستهدف بناءً على المدة التي اختارها المستخدم
         let targetDays: Int
         switch selectedDurationType {
         case "Month":
-            targetDays = 30 // أو عدد الأيام المستهدفة للشهر
+            targetDays = 30
         case "Year":
-            targetDays = 365 // أو عدد الأيام المستهدفة للسنة
+            targetDays = 365
         default:
-            targetDays = 7 // Week (الافتراضي 7 أيام)
+            targetDays = 7
         }
-        
-        // إذا وصل المستخدم لعدد الأيام المتعلمة المطلوبة حسب اختياره، يعتبر الهدف مكتمل
         return learnedDaysCount >= targetDays
     }
 }
